@@ -1,17 +1,21 @@
 <?php
-$data = "GET /?pin=D1120 HTTP/1.1";
-//socket
-$url = "192.168.0.7:80";
-$url_part = parse_url($url);
-$host = $url_part["127.0.0.1"];
-$address = gethostbyname($host);
+$host = "192.168.0.7";  // 修改為 ESP8266 在 Serial Monitor 顯示的 IP
+$port = 888;            // 需與 Arduino 端 SERVER_PORT 相同
+$pin = $_GET["pin"] ?? "D1120";
+
+if (!preg_match("/^D[01][0-9]{2}[01]$/", $pin)) {
+    throw new InvalidArgumentException("pin 格式錯誤，請使用 DmpPs，例如 D1120");
+}
+
+$data = "GET /?pin=" . $pin . " HTTP/1.1\r\nHost: " . $host . "\r\nConnection: close\r\n\r\n";
+
 $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
-if (!$socket) {
-    $err_msg = socket_strerror(socket_last_error($socket));
-    socket_close($socket);
+if ($socket === false) {
+    $err_msg = socket_strerror(socket_last_error());
     throw new Exception("socket_create() failed:" . $err_msg);
 }
-$conn = socket_connect($socket, '192.168.0.7', '80');
+
+$conn = socket_connect($socket, $host, $port);
 if (!$conn) {
     $err_msg = socket_strerror(socket_last_error($socket));
     socket_close($socket);
@@ -20,33 +24,30 @@ if (!$conn) {
 
 //傳送資料
 $bin_body = pack("a*",$data);
-//$bin_body = $data;
-$body_len = strlen($bin_body);
-//$bin_head = pack("N", $body_len); //unsigned long (always 32 bit, big endian byte order)=>數字轉成一個 4 bytes 的big endian byte order
-$bin_data = $bin_body; //4bytes資料本體長度 + 資料本體
-$res = socket_write($socket, $bin_data, strlen($bin_data)); //返回成功寫入的bytes數 or false
-if (!$res) {
-    $err_msg = socket_strerror(socket_last_error($socket));
-    socket_close($socket);
-    throw new Exception("socket_write() failed:" . $err_msg);
+$bin_data = $bin_body;
+$written = 0;
+$data_len = strlen($bin_data);
+
+while ($written < $data_len) {
+    $res = socket_write($socket, substr($bin_data, $written));
+    if ($res === false) {
+        $err_msg = socket_strerror(socket_last_error($socket));
+        socket_close($socket);
+        throw new Exception("socket_write() failed:" . $err_msg);
+    }
+
+    $written += $res;
 }
 
 //接收資料
 $buf = "";
-//先取得 4bytes 回應資料本體長度
-if (false === ($bytes = socket_recv($socket, $buf, 4, MSG_WAITALL))) { //返回接收到的長度 or false。MSG_WAITALL：阻塞模式，若過程沒異常，一直等到讀到指定長度
-    $err_msg = socket_strerror(socket_last_error($socket));
-    socket_close($socket);
-    throw new Exception("讀取資料長度失敗 socket_recv() failed:" . $err_msg);
-}
-$len_data = unpack("Nlen", $buf); //N：unsigned long (always 32 bit, big endian byte order)=>解析頭 4 個bytes
+socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ["sec" => 2, "usec" => 0]);
 
-//再用取得的資料本體長度，抓回應資料本體
-if (false === ($bytes = socket_recv($socket, $buf, $len_data["len"], MSG_WAITALL))) { //返回接收到的長度 or false。MSG_WAITALL：阻塞模式，若過程沒異常，一直等到讀到指定長度
-    $err_msg = socket_strerror(socket_last_error($socket));
-    socket_close($socket);
-    throw new Exception("讀取回應資料本體失敗 socket_recv() failed:" . $err_msg);
+if (false !== ($bytes = socket_recv($socket, $buf, 1024, 0)) && $bytes > 0) {
+    var_dump($buf);
+} else {
+    echo "Command sent: " . $pin . PHP_EOL;
 }
+
 socket_close($socket);
-var_dump($buf);//回應的資料本體
 ?>

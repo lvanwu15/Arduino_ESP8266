@@ -7,6 +7,7 @@ Timer T1;
 
 #define SSID "XXXXX"
 #define PASSWORD  "XXXXX"
+#define SERVER_PORT 888
 
 String cmdAT = "";
 String StrWebMsg="";
@@ -17,6 +18,8 @@ int GetPin=0,GetPinH=0,GetPinL=0;
 int GetMode=0;
 int PinState=0;
 
+boolean parsePinCommand(String message, int *mode, int *pin, int *state);
+boolean isAllowedPin(int pin);
 
 void setup(void) {
     WifiSerial.begin(9600);
@@ -29,6 +32,8 @@ void setup(void) {
     digitalWrite(11,LOW);
     pinMode(12,OUTPUT);
     digitalWrite(12,LOW);
+    pinMode(13,OUTPUT);
+    digitalWrite(13,LOW);
     
     T1.every(5, ESP8266_Main);
     sendATcmd("AT+RST",2000); // 重置ESP模組，等待2秒
@@ -49,7 +54,7 @@ void setup(void) {
     cmdAT ="AT+CWMODE=1";
     
     WifiSerial.println(cmdAT);
-    if (WifiSerial.find("no change")) {  
+    if (Loding("AT+CWMODE=1")) {
     Serial.print("Operate to station ok\r\n");
     break;
     } else {
@@ -75,7 +80,7 @@ void setup(void) {
          for (int i=0;i<=10;i++){
               cmdAT ="AT+CIPMUX=1";
               WifiSerial.println(cmdAT);
-           if (Loding("AT+CWMODE=1")){  
+           if (Loding("AT+CIPMUX=1")){
               Serial.print("Set AT+CIPMUX=1 success\r\n");
             break;
            } else {
@@ -84,15 +89,20 @@ void setup(void) {
           }
 
            for (int i=0;i<=10;i++){
-               cmdAT ="AT+CIPSERVER=1,888";  //開啟Socket Server在Port888
+               cmdAT ="AT+CIPSERVER=1,";
+               cmdAT+=SERVER_PORT;  //開啟Socket Server
                WifiSerial.println(cmdAT);
            if (Loding("AT+CIPSERVER=1")){  
-              Serial.print("Set port 888  success\r\n");
+              Serial.print("Set port ");
+              Serial.print(SERVER_PORT);
+              Serial.print(" success\r\n");
               Serial.print("ESP8266 configuration Done!\r\n");
               Serial.print("End====================================\r\n");
             break;
            } else {
-              Serial.print("Set port 9000  failure\r\n");
+              Serial.print("Set port ");
+              Serial.print(SERVER_PORT);
+              Serial.print(" failure\r\n");
               Serial.print("End====================================\r\n");
            }
           }
@@ -157,25 +167,25 @@ void ESP8266_Main(){
                 Serial.println(connID);
                 Serial.println(StrWebMsg);
 
-                GetMode=(char)StrWebMsg[15]-48;   //48 is ASCII '0'
+                if (!parsePinCommand(StrWebMsg, &GetMode, &GetPin, &PinState)) {
+                  Serial.println("Invalid command, expected pin=DmpPs. Example: pin=D1120");
+                  cmdAT = "AT+CIPCLOSE=";
+                  cmdAT+=connID;
+                  sendATcmd(cmdAT,500);
+                  return;
+                }
+
                 Serial.print("Mode=");
                 Serial.println(GetMode);
-                 
+                Serial.print("Pin=");
+                Serial.println(GetPin);
+                Serial.print("PinStatus=");
+                Serial.println(PinState);
 
                 switch(GetMode)
                 {
                   case 0:
                   {
-                GetPinH=(char)StrWebMsg[16]-48;   //48 is ASCII '0', Pin :十位數
-                GetPinL=(char)StrWebMsg[17]-48;   //48 is ASCII '0', Pin :個位數
-                GetPin=GetPinH*10+GetPinL;
-                 
-                Serial.print("Pin=");
-                Serial.println(GetPin);
- 
-                PinState=(char)StrWebMsg[18]-48;   //48 is ASCII '0'
-                Serial.print("PinStatus=");
-                Serial.println(PinState);
                    if(GetPin==12&&PinState==1)
                 {
                   digitalWrite(10,1);
@@ -187,22 +197,14 @@ void ESP8266_Main(){
                   digitalWrite(11,0);
                     }
                    else{
-                digitalWrite(GetPin,PinState);
+                if (isAllowedPin(GetPin)) {
+                  digitalWrite(GetPin,PinState);
+                }
                 }
                 break;
                     }
                   case 1:
                   {
-                GetPinH=(char)StrWebMsg[19]-48;   //48 is ASCII '0', Pin :十位數
-                GetPinL=(char)StrWebMsg[20]-48;   //48 is ASCII '0', Pin :個位數
-                GetPin=GetPinH*10+GetPinL;
-                 
-                Serial.print("Pin=");
-                Serial.println(GetPin);
- 
-                PinState=(char)StrWebMsg[21]-48;   //48 is ASCII '0'
-                Serial.print("PinStatus=");
-                Serial.println(PinState);
                     if(GetPin==13&&PinState==1)
                 {
                   digitalWrite(10,1);
@@ -222,7 +224,9 @@ void ESP8266_Main(){
                   }
                 else if(GetMode==1)
                 {
-                digitalWrite(GetPin,PinState);
+                if (isAllowedPin(GetPin)) {
+                  digitalWrite(GetPin,PinState);
+                }
                   }
     
    
@@ -235,6 +239,45 @@ void ESP8266_Main(){
            }
      }
    
+}
+
+boolean parsePinCommand(String message, int *mode, int *pin, int *state) {
+  int commandIndex = message.indexOf("pin=");
+  if (commandIndex == -1) {
+    return false;
+  }
+
+  int valueIndex = commandIndex + 4;
+  if (message[valueIndex] == 'D') {
+    valueIndex++;
+  }
+
+  if (message.length() < valueIndex + 4) {
+    return false;
+  }
+
+  char modeChar = message[valueIndex];
+  char pinTenChar = message[valueIndex + 1];
+  char pinOneChar = message[valueIndex + 2];
+  char stateChar = message[valueIndex + 3];
+
+  if (!isDigit(modeChar) || !isDigit(pinTenChar) || !isDigit(pinOneChar) || !isDigit(stateChar)) {
+    return false;
+  }
+
+  *mode = modeChar - '0';
+  *pin = (pinTenChar - '0') * 10 + (pinOneChar - '0');
+  *state = stateChar - '0';
+
+  if ((*mode != 0 && *mode != 1) || (*state != 0 && *state != 1)) {
+    return false;
+  }
+
+  return isAllowedPin(*pin);
+}
+
+boolean isAllowedPin(int pin) {
+  return pin == 10 || pin == 11 || pin == 12 || pin == 13;
 }
 
 String get_response() {  //get esp responce without "Serial.find()".
