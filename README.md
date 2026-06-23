@@ -7,6 +7,8 @@
 - `Socket_server/Socket_server.ino`：Arduino + ESP8266 Socket Server 程式
 - `PHP/Socket_Client.php`：PHP Socket Client 範例
 - `image/`：連線畫面、執行結果與電路圖
+- `CHANGELOG.md`：專案修改紀錄
+- `docs/REQUEST_LOG.md`：需求與處理紀錄
 
 ## Arduino 設定
 
