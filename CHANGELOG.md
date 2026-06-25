@@ -29,3 +29,14 @@
 - 已執行 `git diff --check`，沒有 whitespace 或 diff 格式問題。
 - 本機環境沒有 `php`，未執行 PHP lint。
 - 本機環境沒有 `arduino-cli`，未執行 Arduino 編譯驗證。
+
+## 2026-06-25
+
+### Changed
+
+- 將專案工作目錄搬移到 `/Users/yifingwu/Project/Arduino_ESP8266`。
+
+### Verification
+
+- 已確認新位置的 Git remote 為 `https://github.com/lvanwu15/Arduino_ESP8266.git`。
+- 已確認新位置目前位於 `master`，且對齊 `origin/master`。

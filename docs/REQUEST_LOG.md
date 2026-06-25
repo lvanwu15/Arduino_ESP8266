@@ -36,6 +36,21 @@
   - 在 `README.md` 加入紀錄文件連結。
 - 結果：本次需求紀錄已建立，未來異動應同步更新這兩份文件。
 
+## 2026-06-25
+
+### 需求 4：搬移專案到 `/Users/yifingwu/Project`
+
+- 需求內容：使用者要求將此專案搬移到 `/Users/yifingwu/Project`。
+- 處理方式：
+  - 確認 `/Users/yifingwu/Project` 已存在。
+  - 確認目標位置沒有既有 `Arduino_ESP8266` 子資料夾。
+  - 從 GitHub clone 最新 repository 到 `/Users/yifingwu/Project/Arduino_ESP8266`。
+- 結果：專案已建立在 `/Users/yifingwu/Project/Arduino_ESP8266`。
+- 驗證：
+  - 已確認檔案包含 `README.md`、`CHANGELOG.md`、`docs/REQUEST_LOG.md`、`PHP/Socket_Client.php`、`Socket_server/Socket_server.ino` 與圖片資源。
+  - 已確認新位置 Git branch 為 `master`，並對齊 `origin/master`。
+  - 已確認 remote 為 `https://github.com/lvanwu15/Arduino_ESP8266.git`。
+
 ## 維護規則
 
 - 每次程式或文件異動，更新 `CHANGELOG.md`。
